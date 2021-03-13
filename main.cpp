@@ -163,12 +163,10 @@ void p5Batch(std::vector<Block>& q, std::vector<Block>& rq, RepeatBlocksInfo& rb
     q.at(mcicl).prevBlockAddress = std::bitset<2 * BYTE>(0);
 }
 
-FrameRR p6(Block infFrame) {
+FrameRR p6(int z1) {
     FrameRR rr;
     rr.data = std::bitset<BYTE>(
-            std::bitset<1>(infFrame.frameHeader[3]).to_string() +
-            std::bitset<1>(infFrame.frameHeader[2]).to_string() +
-            std::bitset<1>(infFrame.frameHeader[1]).to_string() +
+            std::bitset<3>(z1 + 1).to_string() +
             std::bitset<5>(1).to_string()
     );
 
@@ -197,13 +195,13 @@ void p8(std::vector<Block> &q, std::vector<Block> &kq, size_t n2, KpmBlocksInfo&
     kbi.size = 1;
 }
 
-void p9(FrameRR rr, int z2) {
+void p9(FrameRR rr, int z1) {
     int nr = std::bitset<3>(
             std::bitset<1>(rr.data[7]).to_string() +
             std::bitset<1>(rr.data[6]).to_string() +
             std::bitset<1>(rr.data[5]).to_string()
     ).to_ulong();
-    if (nr - 1 != z2) throw;
+    if (nr - 1 != z1) throw;
 }
 
 void p10(std::vector<Block> &q, std::vector<Block> &rq, size_t n2, size_t n1, FreeBlocksInfo& fbi, FilledBlocksInfo& fibi, RepeatBlocksInfo& rbi){
@@ -264,14 +262,13 @@ void printBlock(Block frame){
 }
 
 const void printResult(std::vector<Block> q, size_t n2) {
+    std::cout << "PreLast frame in queue (RR): " << std::endl;
+    printBlock(q.at(n2));
     std::cout << std::endl << "Last frame in queue (I) head: ";
     for (auto i = BYTE - 1; i >= 0; --i) {
         std::cout << q.at(n2 + 1).frameHeader[i];
     }
     std::cout << std::endl;
-
-    std::cout << "Penultimate frame in queue (RR): " << std::endl;
-    printBlock(q.at(n2));
 }
 
 const void printResultBatch(std::vector<Block> q, int mcicl) {
@@ -309,10 +306,10 @@ void oneFrameTransmission(){
     Block informationFrame = p4(queue, z1, z2);
     p5(repeatQueue, informationFrame, rbi, fibi);
     RGout(informationFrame, repeatQueue);
-    FrameRR rr = p6(informationFrame);
+    FrameRR rr = p6(z1);
     p7(rr, queue, n2, fbi, fibi);
     p8(queue, kpmQueue, n2, kbi);
-    p9(rr, z2);
+    p9(rr, z1);
     p10(queue, repeatQueue, n2, n1, fbi, fibi, rbi);
     printResult(queue, n2);
 }
