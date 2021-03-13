@@ -115,6 +115,32 @@ Block p4(std::vector<Block>& q, int z1, int z2) {
     return informationFrame;
 }
 
+void p4Batch(std::vector<Block>& q, int z1, int z2, int mcicl) {
+    int vs = z1;
+    int vr = z2;
+    for(auto i = 0; i < mcicl; ++i) {
+
+        q.at(i).frameHeader = std::bitset<BYTE>(
+                std::bitset<3>(vr).to_string() +
+                std::bitset<1>(0).to_string() +
+                std::bitset<3>(vs).to_string() +
+                std::bitset<1>(0).to_string()
+        );
+
+        std::bitset<BYTE> payloadPart;
+        for (auto i = BYTE - 1; i >= 0; --i) {
+            payloadPart[i] = q.at(i).payload[i];
+        }
+        std::bitset<BYTE> checksumLow = payloadPart ^q.at(i).frameHeader;
+        std::bitset<BYTE> checksumUpper;
+        for (auto i = 0; i < PAYLOADSIZE; ++i) {
+            checksumUpper ^= payloadPart;
+        }
+        q.at(i).checksum = std::bitset<BYTE * 2>(checksumUpper.to_string() + checksumLow.to_string());
+        vs++;
+    }
+}
+
 void p5(std::vector<Block>& rq, Block infFrame, RepeatBlocksInfo& rbi, FilledBlocksInfo &fibi) {
     rbi.firstBlockAddress = std::bitset<2 * BYTE>(0);
     rbi.lastBlockAddress = fibi.firstBlockAddress;
@@ -124,6 +150,17 @@ void p5(std::vector<Block>& rq, Block infFrame, RepeatBlocksInfo& rbi, FilledBlo
     fibi.size--;
 
     rq.push_back(infFrame);
+}
+
+void p5Batch(std::vector<Block>& q, std::vector<Block>& rq, RepeatBlocksInfo& rbi, int mcicl) {
+    rbi.firstBlockAddress = std::bitset<2 * BYTE>(0);
+    rbi.lastBlockAddress = std::bitset<2 * BYTE>((mcicl - 1) * BLOCKSIZE * BYTE);
+    rbi.size = mcicl;
+    for(auto i = 0; i < mcicl; ++i) {
+    rq.push_back(q.at(i));
+    }
+    rq.at(mcicl - 1).nextBlockAddress = std::bitset<2 * BYTE>(0);
+    q.at(mcicl).prevBlockAddress = std::bitset<2 * BYTE>(0);
 }
 
 FrameRR p6(Block infFrame) {
@@ -207,15 +244,7 @@ const void RGout(Block frame, std::vector<Block> rq) {
     std::cout << "Checksum: " << frame.checksum.to_string() << std::endl;
 }
 
-const void printResult(std::vector<Block> q, size_t n2) {
-    std::cout << std::endl << "Last frame in queue (I) head: ";
-    for (auto i = BYTE - 1; i >= 0; --i) {
-        std::cout << q.at(n2 + 1).frameHeader[i];
-    }
-    std::cout << std::endl;
-
-    Block frame = q.at(n2);
-    std::cout << "Penultimate frame in queue (RR): " << std::endl;
+void printBlock(Block frame){
     std::cout << "First address field: ";
     for (auto i = BYTE * 2 - 1; i >= 0; --i) {
         std::cout << frame.prevBlockAddress[i];
@@ -234,7 +263,33 @@ const void printResult(std::vector<Block> q, size_t n2) {
     std::cout << "Checksum: " << frame.checksum.to_string() << std::endl;
 }
 
-int main() {
+const void printResult(std::vector<Block> q, size_t n2) {
+    std::cout << std::endl << "Last frame in queue (I) head: ";
+    for (auto i = BYTE - 1; i >= 0; --i) {
+        std::cout << q.at(n2 + 1).frameHeader[i];
+    }
+    std::cout << std::endl;
+
+    std::cout << "Penultimate frame in queue (RR): " << std::endl;
+    printBlock(q.at(n2));
+}
+
+const void printResultBatch(std::vector<Block> q, int mcicl) {
+    std::cout << std::endl << "Batch frame transmission" << std::endl;
+    std::cout << "Repeat queue:" << std::endl;
+    for(auto i = 0; i < mcicl; ++i) {
+        std::cout << i + 1 << " frame head: ";
+        for (auto j = BYTE - 1; j >= 0; --j) {
+            std::cout << q.at(i).frameHeader[j];
+        }
+        std::cout << std::endl;
+    }
+
+    std::cout << "RG register: " << std::endl;
+    printBlock(q.at(0));
+}
+
+void oneFrameTransmission(){
     std::vector<Block> queue;
     std::vector<Block> repeatQueue;
     std::vector<Block> kpmQueue;
@@ -260,5 +315,31 @@ int main() {
     p9(rr, z2);
     p10(queue, repeatQueue, n2, n1, fbi, fibi, rbi);
     printResult(queue, n2);
+}
+
+void batchTransmission(){
+    std::vector<Block> queue;
+    std::vector<Block> repeatQueue;
+    FreeBlocksInfo fbi;
+    FilledBlocksInfo fibi;
+    RepeatBlocksInfo rbi;
+    size_t n1 = 12;
+    size_t n2 = 6;
+    int z1 = 2;
+    int z2 = 4;
+    int m = 4;
+    int mcicl = 4;
+
+    p1(queue, n1, fbi);
+    p2(queue, n2, m);
+    p3(queue, fbi, fibi, n1, n2);
+    p4Batch(queue, z1, z2, mcicl);
+    p5Batch(queue, repeatQueue, rbi, mcicl);
+    printResultBatch(repeatQueue, mcicl);
+}
+
+int main() {
+    oneFrameTransmission();
+    batchTransmission();
     return 0;
 }
